@@ -12,12 +12,28 @@ from supabase import create_client
 
 from energy_scale import ENERGY_BANDS, describe_energy_level
 from sleep_scoring import calculate_sleep_score, get_sleep_coaching_tip
+from workout_tracker import SPLIT, calculate_set_metrics
 
 
 ENERGY_DISPLAY_TIMEZONE = ZoneInfo("America/Los_Angeles")
+GYM_COLUMNS = [
+    "workout_date",
+    "created_at",
+    "day_type",
+    "exercise",
+    "set_number",
+    "weight",
+    "weight_unit",
+    "reps",
+    "rpe",
+    "volume",
+    "est_1rm",
+]
 
-st.set_page_config(page_title="Sleep Coach", page_icon="🌙", layout="centered")
-st.title("🌙 Personal Sleep Coach")
+st.set_page_config(
+    page_title="Sleep & Gym Tracker", page_icon="🌙", layout="centered"
+)
+st.title("🌙 Sleep & Gym Tracker")
 
 column_names = {
     "log_date": "Date",
@@ -82,8 +98,8 @@ if not st.session_state.get("authenticated", False):
 
 supabase = get_supabase_client()
 
-tab_log, tab_energy, tab_dashboard = st.tabs(
-    ["Log Sleep", "Energy Check-ins", "Dashboard & Trends"]
+tab_log, tab_energy, tab_gym, tab_dashboard = st.tabs(
+    ["Log Sleep", "Energy Check-ins", "Gym Tracker", "Dashboard & Trends"]
 )
 
 with tab_log:
@@ -218,6 +234,206 @@ with tab_log:
                 + get_sleep_coaching_tip(sleep_score, score_breakdown)
             )
             st.balloons()
+
+with tab_gym:
+    st.subheader("Log a workout")
+    workout_date = st.date_input(
+        "Workout date", datetime.date.today(), key="gym_workout_date"
+    )
+    day_type = st.selectbox("Workout split", list(SPLIT), key="gym_day_type")
+    exercise_options = [*SPLIT[day_type], "Custom exercise"]
+    exercise = st.selectbox(
+        "Exercise", exercise_options, key="gym_exercise"
+    )
+    if exercise == "Custom exercise":
+        exercise = st.text_input(
+            "Custom exercise name", key="gym_custom_exercise"
+        ).strip()
+    weight_unit = st.selectbox(
+        "Weight unit", ["lb", "kg"], key="gym_weight_unit"
+    )
+    set_count = st.number_input(
+        "Sets completed",
+        min_value=1,
+        max_value=12,
+        value=3,
+        step=1,
+        key="gym_set_count",
+    )
+
+    with st.form("gym_log_form", clear_on_submit=True):
+        workout_sets = []
+        for set_number in range(1, int(set_count) + 1):
+            st.markdown(f"**Set {set_number}**")
+            weight_col, reps_col, rpe_col = st.columns(3)
+            weight = weight_col.number_input(
+                f"Weight ({weight_unit})",
+                min_value=0.1,
+                value=45.0,
+                step=2.5,
+                key=f"gym_weight_{set_number}",
+            )
+            reps = reps_col.number_input(
+                "Reps",
+                min_value=1,
+                max_value=100,
+                value=10,
+                step=1,
+                key=f"gym_reps_{set_number}",
+            )
+            rpe = rpe_col.number_input(
+                "RPE",
+                min_value=1.0,
+                max_value=10.0,
+                value=8.0,
+                step=0.5,
+                key=f"gym_rpe_{set_number}",
+            )
+            workout_sets.append((set_number, weight, reps, rpe))
+
+        gym_submitted = st.form_submit_button(
+            "Save exercise sets", use_container_width=True
+        )
+
+    if gym_submitted and not exercise:
+        st.error("Enter a name for the custom exercise.")
+    elif gym_submitted:
+        new_sets = []
+        for set_number, weight, reps, rpe in workout_sets:
+            volume, estimated_1rm = calculate_set_metrics(
+                float(weight), int(reps)
+            )
+            new_sets.append(
+                {
+                    "workout_date": str(workout_date),
+                    "day_type": day_type,
+                    "exercise": exercise,
+                    "set_number": set_number,
+                    "weight": round(float(weight), 2),
+                    "weight_unit": weight_unit,
+                    "reps": int(reps),
+                    "rpe": float(rpe),
+                    "volume": volume,
+                    "est_1rm": estimated_1rm,
+                }
+            )
+        try:
+            supabase.table("gym_logs").insert(new_sets).execute()
+        except APIError as exc:
+            if exc.code not in {"42P01", "PGRST205"}:
+                raise
+            st.error(
+                "The gym tracker needs a database update first. Run "
+                "supabase_migration_v4.sql in your Supabase SQL Editor, "
+                "then refresh this app."
+            )
+        else:
+            st.success(
+                f"Saved {len(new_sets)} sets of **{exercise}** "
+                f"for **{day_type}**."
+            )
+
+    try:
+        gym_records = (
+            supabase.table("gym_logs")
+            .select(", ".join(GYM_COLUMNS))
+            .order("workout_date", desc=True)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        )
+    except APIError as exc:
+        if exc.code not in {"42P01", "PGRST205"}:
+            raise
+        gym_records = None
+        st.error(
+            "The gym tracker needs a database update first. Run "
+            "supabase_migration_v4.sql in your Supabase SQL Editor, "
+            "then refresh this app."
+        )
+
+    if gym_records:
+        gym_df = pd.DataFrame(gym_records)
+        gym_df["Date"] = pd.to_datetime(gym_df["workout_date"])
+        gym_df = gym_df.rename(
+            columns={
+                "day_type": "Workout",
+                "exercise": "Exercise",
+                "set_number": "Set",
+                "weight": "Weight",
+                "weight_unit": "Unit",
+                "reps": "Reps",
+                "rpe": "RPE",
+                "volume": "Volume",
+                "est_1rm": "Est. 1RM",
+            }
+        )
+
+        st.subheader("Progressive overload")
+        latest_session = gym_df.iloc[0]
+        latest_date = latest_session["Date"]
+        latest_day = latest_session["Workout"]
+        latest_workout = gym_df[
+            (gym_df["Date"] == latest_date) & (gym_df["Workout"] == latest_day)
+        ]
+        st.markdown(
+            f"**Most recent workout:** {latest_date.date()} · {latest_day}"
+        )
+        st.dataframe(
+            latest_workout[
+                [
+                    "Exercise",
+                    "Set",
+                    "Weight",
+                    "Unit",
+                    "Reps",
+                    "RPE",
+                    "Volume",
+                    "Est. 1RM",
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("**Personal records — estimated 1RM**")
+        personal_records = (
+            gym_df.groupby(["Exercise", "Unit"], as_index=False)["Est. 1RM"]
+            .max()
+            .sort_values(["Exercise", "Unit"])
+        )
+        personal_records["Est. 1RM"] = personal_records.apply(
+            lambda row: f"{row['Est. 1RM']:.2f} {row['Unit']}",
+            axis=1,
+        )
+        st.dataframe(
+            personal_records[["Exercise", "Est. 1RM"]],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        gym_download = gym_df[
+            [
+                "Date",
+                "Workout",
+                "Exercise",
+                "Set",
+                "Weight",
+                "Unit",
+                "Reps",
+                "RPE",
+                "Volume",
+                "Est. 1RM",
+            ]
+        ].copy()
+        st.download_button(
+            "Download workout log CSV",
+            data=gym_download.to_csv(index=False),
+            file_name="workout_log.csv",
+            mime="text/csv",
+        )
+    elif gym_records is not None:
+        st.info("Your workout history and personal records will appear here.")
 
 with tab_energy:
     st.subheader("How energized do you feel right now?")

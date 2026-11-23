@@ -21,6 +21,14 @@ as timestamped 1-100 snapshots in UTC and displayed in Riverside, California
 time. The curve is a subjective self-report, not an objective measurement or
 medical assessment.
 
+To add the gym tracker to an existing project, run
+`supabase_migration_v4.sql` once in the SQL Editor. Select a workout split and
+one of its exercises, or choose **Custom exercise** to enter a replacement for
+that session. Log completed sets with weight, reps, and RPE. The app saves the
+set volume and Epley estimated 1RM, and shows the latest workout and
+estimated-1RM personal records. Weight units are tracked separately so pound
+and kilogram records are not compared to each other.
+
 ## About the sleep score
 
 The score is a transparent diary-based estimate for adults. It uses sleep
