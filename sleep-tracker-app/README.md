@@ -21,6 +21,12 @@ as timestamped 1-100 snapshots in UTC and displayed in Riverside, California
 time. The curve is a subjective self-report, not an objective measurement or
 medical assessment.
 
+To add the gym tracker to an existing project, run `supabase_migration_v4.sql`
+once in the SQL Editor. The app then shows a **Gym Tracker** page in Streamlit's
+navigation, with the six-day workout split, set logging, estimated 1RM trends,
+personal records, recent history, and a CSV backup. Weights can be entered in
+lb or kg; use one unit consistently because the app does not convert units.
+
 ## About the sleep score
 
 The score is a transparent diary-based estimate for adults. It uses sleep
