@@ -17,3 +17,9 @@ alter table public.gym_logs enable row level security;
 
 grant select, insert on public.gym_logs to service_role;
 grant usage, select on sequence public.gym_logs_id_seq to service_role;
+
+create index if not exists gym_logs_date_idx
+    on public.gym_logs (workout_date desc);
+
+create index if not exists gym_logs_exercise_date_idx
+    on public.gym_logs (exercise, workout_date);

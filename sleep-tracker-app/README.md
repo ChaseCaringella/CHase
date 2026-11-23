@@ -21,13 +21,11 @@ as timestamped 1-100 snapshots in UTC and displayed in Riverside, California
 time. The curve is a subjective self-report, not an objective measurement or
 medical assessment.
 
-To add the gym tracker to an existing project, run
-`supabase_migration_v4.sql` once in the SQL Editor. Select a workout split and
-one of its exercises, or choose **Custom exercise** to enter a replacement for
-that session. Log completed sets with weight, reps, and RPE. The app saves the
-set volume and Epley estimated 1RM, and shows the latest workout and
-estimated-1RM personal records. Weight units are tracked separately so pound
-and kilogram records are not compared to each other.
+To add the gym tracker to an existing project, run `supabase_migration_v4.sql`
+once in the SQL Editor. The app then shows a **Gym Tracker** page in Streamlit's
+navigation, with your six-day split, customizable exercises, set logging,
+estimated 1RM trends, personal records, recent history, and a CSV backup.
+Weights are tracked separately in lb or kg and are not converted between units.
 
 ## About the sleep score
 
