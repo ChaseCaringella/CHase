@@ -20,6 +20,11 @@ st.set_page_config(
     page_title="Sleep Coach", page_icon="🌙", layout="centered"
 )
 st.title("🌙 Personal Sleep Coach")
+st.page_link(
+    "pages/2_Gym_Tracker.py",
+    label="Open Gym Tracker",
+    icon="🏋️",
+)
 
 column_names = {
     "log_date": "Date",
