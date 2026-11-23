@@ -1,5 +1,6 @@
 import datetime
 import hmac
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -21,7 +22,7 @@ st.set_page_config(
 )
 st.title("🌙 Personal Sleep Coach")
 st.page_link(
-    "pages/2_Gym_Tracker.py",
+    Path(__file__).resolve().parent / "pages" / "2_Gym_Tracker.py",
     label="Open Gym Tracker",
     icon="🏋️",
 )
